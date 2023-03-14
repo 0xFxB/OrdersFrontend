@@ -1,0 +1,47 @@
+﻿<Modal @ref=ModalComponent Title="Delete order" OnAccept=@(async () => await OnAcceptModal()) OnClose=OnCancel >
+    <Content>
+        <ErrorAlert @ref=ErrorAlertComponent />
+        <div>
+            Are u sure to delete order id: @OrderId ?
+        </div>
+    </Content>
+</Modal>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+    [Parameter]
+    public Action? OnDeleteSuccess { get; set; }
+    [Parameter]
+    public Action? OnDeleteCancel {get;set;}
+
+    [Inject]
+    private OrdersHttpClient ordersHttpClient { get; set; } = default!;
+
+    private Modal? ModalComponent { get; set; }
+    private ErrorAlert? ErrorAlertComponent { get; set; }
+
+    public void Show()
+    {
+        if (ModalComponent is not null)
+            ModalComponent.Show();
+    }
+
+    private void OnCancel()
+        => OnDeleteCancel?.Invoke();
+
+    private async Task OnAcceptModal()
+    {
+        var result = await ordersHttpClient.DeleteOrder(OrderId);
+        if (result < 1)
+        {
+            ErrorAlertComponent!.Show("Can't delete order, please retry action");
+        }
+        else
+        {
+            OnDeleteSuccess!.Invoke();
+            ModalComponent!.Hide();
+            StateHasChanged();
+        }
+    }
+}

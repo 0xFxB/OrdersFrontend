@@ -1,0 +1,49 @@
+﻿<Modal @ref=ModalComponent Title="Delete order" OnAccept=@(async () => await OnAcceptModal()) OnClose=OnCancel >
+    <Content>
+        <ErrorAlert @ref=ErrorAlertComponent />
+        <div>
+            Are u sure to change status order id: @OrderId to status: <b>@Status</b>?
+        </div>
+    </Content>
+</Modal>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+    [Parameter]
+    public StatusEnum Status { get; set; }
+    [Parameter]
+    public Action? OnChangeSuccess { get; set; }
+    [Parameter]
+    public Action? OnChangeCancel { get; set; }
+
+    [Inject]
+    private OrdersHttpClient ordersHttpClient { get; set; } = default!;
+
+    private Modal? ModalComponent { get; set; }
+    private ErrorAlert? ErrorAlertComponent { get; set; }
+
+    public void Show()
+    {
+        if (ModalComponent is not null)
+            ModalComponent.Show();
+    }
+
+    private void OnCancel()
+        => OnChangeCancel?.Invoke();
+
+    private async Task OnAcceptModal()
+    {
+        var result = await ordersHttpClient.ChangeStatus(new(OrderId, Status));
+        if (result < 1)
+        {
+            ErrorAlertComponent!.Show("Can't change status order, please retry action");
+        }
+        else
+        {
+            OnChangeSuccess!.Invoke();
+            ModalComponent!.Hide();
+            StateHasChanged();
+        }
+    }
+}

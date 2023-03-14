@@ -1,0 +1,28 @@
+﻿@if(Visible)
+{
+    <div class="alert alert-success d-flex justify-content-between mt-2">
+      <div>
+          @Message
+      </div>
+      <div>
+          <button type="button" class="btn-close" @onclick=Close />
+      </div>
+    </div>
+}
+
+@code {
+    private bool Visible { get; set; } = false;
+    private string Message { get; set; } = string.Empty;
+
+    public void Show(string message)
+    {
+        Message = message;
+        Visible = true;
+        StateHasChanged();
+    }
+
+    private void Close()
+    {
+        Visible = false;
+    }
+}

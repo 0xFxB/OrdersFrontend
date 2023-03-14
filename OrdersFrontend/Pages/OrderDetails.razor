@@ -1,0 +1,331 @@
+﻿@page "/{Id}"
+
+@if(Details is not null)
+{
+    <div class="flex-column">
+        <div class="p-4 d-flex justify-content-between">
+            <div>
+                <button class="btn btn-sm btn-outline-secondary" @onclick=GoBack>Back to list</button>
+            </div>
+            @if (Details.status == Enums.StatusEnum.New)
+            {
+                <div class="d-flex gap-2">
+                    @if(EditMode)
+                    {
+                        <div>
+                            <button type="button" class="btn btn-sm btn-warning" @onclick=@(async () => await UpdateOrder())>Save</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div>
+                            <button type="button" class="btn btn-sm btn-primary" @onclick=@(_ => EditMode= !EditMode)>Edit</button>
+                        </div>
+                    }
+                    <div>
+                        <button type="button" class="btn btn-sm btn-danger" @onclick=ShowDeleteOrderModal>Delete</button>
+                    </div>
+                </div>
+                
+            }
+        </div> 
+        @DrawOrderDetailsHeader(Details.id, Details.status)
+        @if(Details.status == Enums.StatusEnum.New)
+        {
+            @DrawSwapStatusBar(Details.status)
+        }
+        <SuccessAlert @ref=SuccessAlertComponent />
+        <ErrorAlert @ref=ErrorAlertComponent />
+        @DrawOrderInfo(Details.clientName, Details.createDate, Details.additionalInfo)
+        <div>
+            @if(EditMode)
+            {
+                @DrawProducts(Products)
+                @DrawAddProductLine()
+            }
+            else
+            {
+                @DrawProducts(Details.products)
+            }
+        </div>
+        <div>
+            Total price: @Details.totalPrice
+        </div>
+    </div>
+}
+
+<DeleteOrder @ref=DeleteOrderComponent OrderId=OrderId OnDeleteSuccess=GoBack />
+<ChangeStatusOrder @ref=ChangeStatusOrderComponent OrderId=OrderId Status=Status OnChangeSuccess=@(async () => await ChangeStatusSuccess()) />
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    [Inject]
+    private OrdersHttpClient ordersHttpClient { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager navManager { get; set; } = default!;
+
+    private Models.Orders.OrderDetails? Details { get; set; }
+    private int OrderId = 0;
+    private StatusEnum Status;
+    private DeleteOrder? DeleteOrderComponent { get; set; }
+    private ChangeStatusOrder? ChangeStatusOrderComponent { get; set; }
+    private bool EditMode = false;
+    private string ClientName { get; set; } = string.Empty;
+    private string AdditionalInfo { get; set; } = string.Empty;
+    private ICollection<OrderDetailsProduct> Products { get; set; } = new List<OrderDetailsProduct>();
+    private string ProductName = string.Empty;
+    private decimal ProductPrice;
+    private SuccessAlert? SuccessAlertComponent { get; set; }
+    private ErrorAlert? ErrorAlertComponent { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        OrderId = Convert.ToInt32(Id);
+        await LoadOrderDetails(OrderId);
+    }
+
+    private async Task LoadOrderDetails(int id)
+    {
+        Details = await ordersHttpClient.GetDetails(id);
+        SetDetailsValueToInputs(Details);
+    }
+
+    private void SetDetailsValueToInputs(Models.Orders.OrderDetails details)
+    {
+        ClientName = details.clientName;
+        AdditionalInfo = details.additionalInfo;
+        Products = details.products.ToList();
+    }
+
+    private void ShowDeleteOrderModal()
+    {
+        if (DeleteOrderComponent is not null && OrderId > 0)
+            DeleteOrderComponent.Show();
+    }
+
+    private void ShowChangeStatusOrderModal(StatusEnum status)
+    {
+        Status = status;
+        if (ChangeStatusOrderComponent is not null && OrderId > 0)
+            ChangeStatusOrderComponent.Show();
+    }
+
+    private async Task ChangeStatusSuccess()
+    {
+        await LoadOrderDetails(OrderId);
+        StateHasChanged();
+    }
+
+    private async Task UpdateOrder()
+    {
+        var products = Products.Select(x => new UpdateOrderProduct(x.Id, x.Name, x.Price));
+        var orderToUpdate = new UpdateOrder(OrderId, ClientName, AdditionalInfo, products);
+        var result = await ordersHttpClient.UpdateOrder(orderToUpdate);
+        if (result > 0 && SuccessAlertComponent is not null)
+        {
+            SuccessAlertComponent.Show("Success update order");
+            EditMode = false;
+            await LoadOrderDetails(OrderId);
+            StateHasChanged();
+        }
+        else
+        {
+            if (ErrorAlertComponent is not null)
+                ErrorAlertComponent.Show("Can't save changes, please retry action");
+        }
+
+    }
+
+    private void AddProduct(int id, string name, decimal price)
+    {
+        Products.Add(new(id, name, price));
+    }
+
+    private void DeleteProduct(OrderDetailsProduct product)
+        => Products.Remove(product);
+
+    private void GoBack()
+        => navManager.NavigateTo("/");
+
+    private RenderFragment DrawProducts(IEnumerable<OrderDetailsProduct> products)
+    {
+        return
+        @<div class="flex-column p-3">
+            <div class="text-muted px-3">
+                Products(@products.Count())
+            </div>
+            @foreach(var product in products)
+            {
+                @if(EditMode)
+                {
+                    @DrawEditModeProduct(product)
+                }
+                else
+                {
+                    @DrawNormalModeProduct(product)
+                }
+            }
+            </div>
+    ;
+    }
+
+    private RenderFragment DrawEditModeProduct(OrderDetailsProduct product)
+    {
+        return 
+        @<div class="border-bottom p-2 d-flex gap-2">
+            <div class="fw-bold">
+                <input type="text" class="form-control" @bind-value=product.Name />
+            </div>
+            <div>
+                <input type="number" class="form-control" @bind-value=product.Price />
+            </div>
+            <div>
+                <button class="btn btn-sm btn-close" @onclick=@(_ => DeleteProduct(product)) />
+            </div>
+        </div>
+    ;
+    }
+
+    private RenderFragment DrawNormalModeProduct(OrderDetailsProduct product)
+    {
+        return
+        @<div class="border-bottom p-2 d-flex gap-2">
+            <div class="fw-bold">
+                @product.Name
+            </div>
+            <div>
+                @product.Price
+            </div>
+        </div>;
+    }
+
+    private RenderFragment DrawAddProductLine()
+    {
+        return
+        @<div class="flex-column p-3 mt-2">
+            <div class="text-muted fs-4">Add new product</div>
+            <div class="row g-3 mb-2">
+                <div class="col">
+                    <input type="text" class="form-control" placeholder="Product name" @bind-value=ProductName />
+                </div>
+                <div class="col">
+                <input type="number" class="form-control" placeholder="0.00" @bind-value=ProductPrice />
+                </div>
+            </div>
+            <div>
+                <button type="button" class="btn btn-success" @onclick=@(() => AddProduct(0, ProductName, ProductPrice))>Add product</button>
+            </div>
+        </div>;
+    }
+
+    private RenderFragment DrawSwapStatusBar(StatusEnum status)
+    {
+        return
+        @<div class="mt-2 d-flex justify-content-end gap-2 align-items-center">
+            <div class="text-muted">
+                Change status
+            </div>
+            @if (status != StatusEnum.Confirm)
+            {
+                <div>
+                    <button class="btn btn-sm btn-warning" @onclick=@(() => ShowChangeStatusOrderModal(StatusEnum.Confirm))>Confirm</button>
+                </div>
+            }
+            @if (status != StatusEnum.Delivery)
+            {
+                <div>
+                    <button class="btn btn-sm btn-info" @onclick=@(() => ShowChangeStatusOrderModal(StatusEnum.Delivery))>Delivery</button>
+                </div>
+            }
+            @if (status != StatusEnum.Cancel)
+            {
+                <div>
+                    <button class="btn btn-sm btn-danger" @onclick=@(() => ShowChangeStatusOrderModal(StatusEnum.Cancel))>Cancel</button>
+                </div>
+            }
+        </div>;
+    }
+
+    private RenderFragment DrawOrderInfo(string client, DateTime createDate, string additionalInfo)
+    {
+        return
+        @<div class="p-3">
+            <div>
+                Create date: @DateTimeFormatter.ToShortDate(createDate)
+            </div>
+            <div class="fw-bold">
+                @if(EditMode)
+                {
+                    <div class="flex-column">
+                        <label class="form-label">Client</label>
+                        <input class="form-control" type="text" @bind-value=ClientName>
+                    </div>
+                }
+                else
+                {
+                    <div>
+                        Client: @ClientName
+                    </div>
+                }
+            </div>
+            @if (!string.IsNullOrEmpty(additionalInfo) && !EditMode)
+            {
+                <div>
+                    Additional info: @additionalInfo
+                </div>
+            }
+            @if(EditMode)
+            {
+                 <div class="flex-column">
+                    <label class="form-label fw-bold">Additional info:</label>
+                    <input type="text" class="form-control" @bind-value=AdditionalInfo />
+                 </div>
+            }
+        </div>;
+    }
+
+    private RenderFragment DrawOrderDetailsHeader(int Id, StatusEnum status)
+    {
+        return
+        @<div class="d-flex bg-light rounded p-3 fs-3 gap-4 border-bottom">
+            <div>
+                #@Id
+            </div>
+            <div>
+                @DrawStatusBadge(status)
+            </div>
+        </div>;
+    }
+
+    private RenderFragment DrawStatusBadge(StatusEnum status)
+    {
+        string badgeClass = "badge";
+        switch(status)
+        {
+            case StatusEnum.New:
+                {
+                    badgeClass += " bg-success";
+                    break;
+                }
+            case StatusEnum.Confirm:
+                {
+                    badgeClass += " bg-warning";
+                    break;
+                }
+            case StatusEnum.Delivery:
+                {
+                    badgeClass += " bg-info";
+                    break;
+                }
+            case StatusEnum.Cancel:
+                {
+                    badgeClass += " bg-danger";
+                    break;
+                }
+        }
+        return@<span class=@badgeClass>@status</span>;
+    }
+}

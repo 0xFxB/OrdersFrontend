@@ -1,0 +1,157 @@
+﻿@page "/"
+
+<div>
+    @if(OrdersFiltered.Any())
+    {
+        <div class="flex-column p-3 mt-3">
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                </div>
+                <input type="text" class="form-control" placeholder="Type date (yyyy-mm-dd) or order status" @oninput=@((e) => OnInputFilter(e)) />
+            </div>
+        </div>
+        <table class="table">
+            <caption>Orders count: @OrdersFiltered.Count()</caption>
+            <thead>
+                @DrawTableHeader()
+            </thead>
+            <tbody>
+                @foreach(var order in OrdersFiltered.Select((x,i) => new {content = x, index = i + 1}))
+                {
+                    <tr>
+                        <td>@order.index</td>
+                        <td>@order.content.clientName</td>
+                        <td>@DateTimeFormatter.ToShortDate(order.content.createDate)</td>
+                        <td>@order.content.status</td>
+                        <td>@order.content.orderPrice</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick=@(_ => GoToDetails(order.content.id))>Preview</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            @DrawPagination()
+        </table>
+    }
+    else
+    {
+        <div class="spinner-border" role="status">
+            <span class="sr-only"></span>
+        </div>
+    }
+</div>
+
+<AddOrder @ref=AddOrderComponent OnAddSuccess=@(async () => await OnAddOrder()) />
+
+@code {
+    [Inject]
+    private OrdersHttpClient ordersHttpClient { get; set; } = default!;
+    [Inject]
+    private NavigationManager navManager { get; set; } = default!;
+
+    IEnumerable<Order> Orders { get; set; } = Enumerable.Empty<Order>();
+    IEnumerable<Order> OrdersFiltered { get; set; } = Enumerable.Empty<Order>();
+    private AddOrder? AddOrderComponent { get; set; }
+    private int MaxRowPage { get; set; } = 1;
+    private int CurrentRowPage { get; set; } = 1;
+    private IEnumerable<int> PageIndexes = Enumerable.Empty<int>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        Orders = await ordersHttpClient.GetAllOrders(CurrentRowPage);
+        OrdersFiltered = Orders;
+        await LoadPagination();
+    }
+
+    private async Task LoadPagination()
+    {
+        var rowsCount = await ordersHttpClient.GetCount();
+        MaxRowPage = rowsCount / 10;
+        if (rowsCount % 10 > 0 && rowsCount % 10 < 10)
+            MaxRowPage++;
+
+        PageIndexes = Enumerable.Range(1, MaxRowPage);
+
+    }
+
+    private async Task OnAddOrder()
+    {
+        await LoadOrdersAsync();
+        StateHasChanged();
+    }
+
+    private void OnInputFilter(ChangeEventArgs e)
+    {
+        var text = e.Value?.ToString() ?? string.Empty;
+        UseFilter(text);
+    }
+
+    private void UseFilter(string filterText)
+    {
+        if (string.IsNullOrEmpty(filterText))
+            OrdersFiltered = Orders;
+
+        var text = filterText.ToLower();
+
+        OrdersFiltered = Orders.Where(x => 
+            x.status.ToString().ToLower().Contains(text)
+            || DateTimeFormatter.ToShortDate(x.createDate).Contains(text)
+        );
+    }
+
+    private void ShowAddOrderComponent()
+    {
+        if (AddOrderComponent is not null)
+            AddOrderComponent.Show();
+    }
+
+    private void GoToDetails(int orderId)
+        => navManager.NavigateTo($"/{orderId}");
+
+    private async Task SetPage(int pageNumber)
+    {
+        CurrentRowPage = pageNumber;
+        if(pageNumber <= MaxRowPage)
+        {
+            CurrentRowPage = pageNumber;
+            await LoadOrdersAsync();
+            StateHasChanged();
+        }
+    }
+
+    private RenderFragment DrawTableHeader()
+    {
+        return
+        @<tr>
+            <td>#</td>
+            <td>Client</td>
+            <td>Create date</td>
+            <td>Status</td>
+            <td>Total price</td>
+            <td>
+            <button class="btn btn-sm btn-outline-secondary" @onclick=ShowAddOrderComponent>Add</button>
+            </td>
+        </tr>
+    ;
+    }
+
+    private RenderFragment DrawPagination()
+    {
+        return
+        @<nav aria-label="...">
+            <ul class="pagination">
+                @foreach (var x in PageIndexes)
+                {
+                    var liClass = x == CurrentRowPage ? "page-item active" : "page-item";
+                    <li class=@liClass><a class="page-link" href="#" @onclick:preventDefault=true @onclick=@(async () => await SetPage(x))>@x</a></li>
+                }
+            </ul>
+        </nav>;
+    }
+}

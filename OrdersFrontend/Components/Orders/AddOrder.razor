@@ -1,0 +1,158 @@
+﻿<Modal @ref=ModalComponent Title="New order" OnAccept=@(async () => await OnAcceptModal())>
+    <Content>
+        <ErrorAlert @ref=ErrorAlertComponent />
+        <div class="row g-3 mb-2">
+            <div class="col">
+                <input type="text" class="form-control" placeholder="Client name" @bind-value=ClientName />
+            </div>
+            <div class="col d-flex gap-1">
+                <label class="form-label">Create date:</label>
+                <input type="date" class="form-control" @bind-value=OrderCreateDate />
+            </div>
+        </div>
+        <div>
+            <textarea class="form-control" @bind=AdditionalInfo />
+        </div>
+        @DrawAddProducts()
+    </Content>
+</Modal>
+
+@code {
+    [Parameter]
+    public Action? OnAddSuccess { get; set; }
+
+    [Inject]
+    private OrdersHttpClient ordersHttpClient { get; set; } = default!;
+
+    private Modal? ModalComponent { get; set; }
+    private ErrorAlert? ErrorAlertComponent { get; set; }
+
+    private ICollection<NewProduct> Products { get; set; } = new List<NewProduct>();
+    private string ClientName { get; set; } = string.Empty;
+    private DateTime OrderCreateDate { get; set; } = DateTime.Now;
+    private string AdditionalInfo { get; set; } = string.Empty;
+    private string NewProductName { get; set; } = string.Empty;
+    private decimal NewProductPrice { get; set; }
+
+    public void Hide()
+    {
+        if (ModalComponent is not null)
+            ModalComponent.Hide();
+    }
+
+    public void Show()
+    {
+        if (ModalComponent is not null)
+            ModalComponent.Show();
+    }
+
+    private async Task OnAcceptModal()
+    {
+        if (!ValidateOrderInputs())
+            return;
+
+        var products = Products.Select(x => new AddOrderProductRequest(x.Name, x.Price));
+        var orderRequest = new AddOrderRequest(ClientName, OrderCreateDate, AdditionalInfo, products);
+        var result = await ordersHttpClient.AddOrder(orderRequest);
+        if (result < 1)
+        {
+            ErrorAlertComponent!.Show("Can't add new order, please retry action or check inputs");
+        }
+        else
+        {
+            OnAddSuccess!.Invoke();
+            ResetAddInputs();
+            Hide();
+            StateHasChanged();
+        }
+    }
+
+    private bool ValidateOrderInputs()
+    {
+        if(string.IsNullOrEmpty(ClientName))
+        {
+            ErrorAlertComponent!.Show("Type client name");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ResetAddInputs()
+    {
+        Products = new List<NewProduct>();
+        ClientName = string.Empty;
+        OrderCreateDate= DateTime.Now;
+        AdditionalInfo = string.Empty;
+        NewProductName = string.Empty;
+        NewProductPrice = 0;
+    }
+
+    private void AddProductToList()
+    {
+        if (!ValidateNewProductInputs())
+            return;
+        Products.Add(new() { Name = NewProductName, Price = NewProductPrice });
+        NewProductName = string.Empty;
+        NewProductPrice = 0;
+    }
+
+    private bool ValidateNewProductInputs()
+    {
+        if(string.IsNullOrEmpty(NewProductName))
+        {
+            ErrorAlertComponent!.Show("Type new product name");
+            return false;
+        }
+
+        if(NewProductPrice <= 0)
+        {
+            ErrorAlertComponent!.Show("Type new product price greater than 0");
+            return false;
+        }
+        return true;
+    }
+
+    private void DeleteProductFromList(NewProduct product)
+    {
+        Products.Remove(product);
+    }
+
+    private RenderFragment DrawAddProducts()
+    {
+        return
+        @<div class="flex-column">
+            <div class="text-muted mb-1">
+                Order products (@Products.Count):
+            </div>
+            @foreach(var product in Products)
+            {
+                <div class="row g-3 mb-1">
+                  <div class="col">
+                    <input type="text" class="form-control" placeholder="Product name" @bind-value=product.Name />
+                  </div>
+                  <div class="col">
+                    <input type="number" class="form-control" placeholder="0.00" @bind-value=product.Price />
+                  </div>
+                  <div class="col">
+                    <button type="button" class="btn btn-danger" @onclick=@(_ => DeleteProductFromList(product))>Delete product</button>
+                  </div>
+                </div>
+            }
+            <div class="flex-column p-2 mb-2">
+                <div class="text-muted">New Product</div>
+                <div class="row g-3 mb-2">
+                    <div class="col">
+                        <input type="text" class="form-control" placeholder="Product name" @bind-value=NewProductName />
+                    </div>
+                    <div class="col">
+                        <input type="number" class="form-control" placeholder="0.00" @bind-value=NewProductPrice />
+                    </div>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-success" @onclick=AddProductToList>Add product</button>
+                </div>
+            </div>
+        </div>;
+    }
+}

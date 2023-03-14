@@ -1,0 +1,60 @@
+﻿@if(Visible)
+{
+    <div class="container fixed-top flex-column p-3 bg-white rounded shadow">
+        <div class="d-flex justify-content-between p-3">
+            <div class="fs-3">
+                @Title
+            </div>
+            <div>
+                <button type="button" class="btn-close" aria-label="Close" @onclick=OnCloseEvent></button>
+            </div>
+        </div>
+        <div>
+            @if(Content is not null)
+            {
+                @Content
+            }
+        </div>
+        <div class="d-flex justify-content-between">
+            <div>
+                <button type="button" class="btn btn-success" @onclick=OnAcceptEvent>Accept</button>
+            </div>
+            <div>
+                <button type="button" class="btn btn-danger" @onclick=OnCloseEvent>Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+    [Parameter]
+    public bool Visible { get; set; } = false;
+    [Parameter]
+    public Action? OnClose { get; set; } 
+    [Parameter]
+    public Action? OnAccept { get; set; }
+    [Parameter]
+    public RenderFragment? Content { get; set; }
+
+    public void Show()
+    {
+        Visible = true;
+        StateHasChanged();
+    }
+    public void Hide() => Visible = false;
+
+    private void OnAcceptEvent()
+    {
+        if (OnAccept is not null)
+            OnAccept.Invoke();
+    }
+
+    private void OnCloseEvent()
+    {
+        if(OnClose is not null)
+            OnClose.Invoke();
+        Hide();
+    }
+}

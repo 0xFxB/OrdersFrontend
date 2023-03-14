@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using OrdersBackend.Shared.Entities;
 using OrdersBackend.Shared.Functions.Orders.Queries;
 using OrdersBackend.Shared.Interfaces.Repositories;
-using System.Runtime.CompilerServices;
 
 namespace OrdersBackend.Business.Functions.Orders.Queries;
 

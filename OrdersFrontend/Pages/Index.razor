@@ -36,9 +36,19 @@
     }
     else
     {
-        <div class="spinner-border" role="status">
-            <span class="sr-only"></span>
-        </div>
+        @if (LoadingOrders)
+        {
+            <div class="spinner-border" role="status">
+                <span class="sr-only"></span>
+            </div>
+        }
+        else
+        {
+            <div class="flex-column">
+                <div>Not found any orders, please create first order!</div>
+                <div><button class="btn btn-sm btn-outline-secondary" @onclick=ShowAddOrderComponent>New order</button></div>
+            </div>
+        }
     }
 </div>
 
@@ -56,6 +66,7 @@
     private int MaxRowPage { get; set; } = 1;
     private int CurrentRowPage { get; set; } = 1;
     private IEnumerable<int> PageIndexes = Enumerable.Empty<int>();
+    private bool LoadingOrders = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -64,9 +75,11 @@
 
     private async Task LoadOrdersAsync()
     {
+        LoadingOrders = true;
         Orders = await ordersHttpClient.GetAllOrders(CurrentRowPage);
         OrdersFiltered = Orders;
         await LoadPagination();
+        LoadingOrders = false;
     }
 
     private async Task LoadPagination()

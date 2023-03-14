@@ -20,6 +20,6 @@ public static class ConfigureService
         {
             options.UseSqlServer(configuration.GetConnectionString("SQLSERVER"));
 
-        }, ServiceLifetime.Scoped);
+        }, ServiceLifetime.Singleton);
     }
 }
